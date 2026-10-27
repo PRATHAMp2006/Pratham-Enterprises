@@ -3,11 +3,15 @@
   "services": {
     "backend": {
       "root": "backend",
-      "framework": "express"
+      "framework": "express",
+      "buildCommand": "npx prisma generate && tsc",
+      "entrypoint": "src/index.ts"
     },
     "frontend": {
       "root": "frontend",
-      "framework": "vite"
+      "framework": "vite",
+      "buildCommand": "tsc && vite build",
+      "outputDirectory": "dist"
     }
   },
   "rewrites": [
