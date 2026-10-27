@@ -1,0 +1,268 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(uuid())
+  role         String // "ADMIN", "CRM", "TECHNICIAN", "CUSTOMER"
+  name         String
+  email        String   @unique
+  phone        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Staff Profile Fields
+  aadharNumber     String?
+  bloodGroup       String?
+  homeAddress      String?
+  permanentAddress String?
+  personalEmail    String?
+  personalPhone    String?
+
+  customerProfile   CustomerProfile?
+  technicianProfile TechnicianProfile?
+  notifications     Notification[]
+}
+
+model CustomerProfile {
+  id         String @id @default(uuid())
+  userId     String @unique
+  user       User   @relation(fields: [userId], references: [id])
+  customerId String @unique
+  address    String
+
+  serviceRequests  ServiceRequest[]
+  invoices         Invoice[]
+  installedAssets  InstalledAsset[]
+  amcContracts     AmcContract[]
+  serviceSchedules ServiceSchedule[]
+}
+
+model TechnicianProfile {
+  id                 String  @id @default(uuid())
+  userId             String  @unique
+  user               User    @relation(fields: [userId], references: [id])
+  technicianId       String  @unique
+  photoUrl           String?
+  availabilityStatus String  @default("AVAILABLE") // "AVAILABLE", "ON_JOB", "ON_LEAVE", "OFF_DUTY"
+
+  serviceRequests  ServiceRequest[]
+  attendances      Attendance[]
+  installedAssets  InstalledAsset[]
+  availabilityLogs TechnicianAvailabilityLog[]
+}
+
+model Product {
+  id          String  @id @default(uuid())
+  type        String  @default("PRODUCT") // PRODUCT or SERVICE
+  name        String
+  description String?
+  price       Float
+  stock       Int     @default(0)
+  isActive    Boolean @default(true)
+
+  installedAssets InstalledAsset[]
+}
+
+model ServiceRequest {
+  id             String             @id @default(uuid())
+  customerId     String
+  customer       CustomerProfile    @relation(fields: [customerId], references: [customerId])
+  description    String
+  status         String             @default("PENDING") // PENDING, IN_PROGRESS, COMPLETED
+  assignedTechId String?
+  technician     TechnicianProfile? @relation(fields: [assignedTechId], references: [technicianId])
+  scheduledDate  DateTime?
+  notes          String?
+  createdAt      DateTime           @default(now())
+  otpCode        String?
+
+  // Link to installed asset
+  installedAssetId String?
+  installedAsset   InstalledAsset? @relation(fields: [installedAssetId], references: [id])
+
+  // Link to scheduled maintenance visit
+  serviceSchedule ServiceSchedule?
+
+  serviceReport ServiceReport?
+
+  @@index([customerId])
+  @@index([assignedTechId])
+  @@index([status])
+  @@index([installedAssetId])
+}
+
+model ServiceReport {
+  id                String         @id @default(uuid())
+  requestId         String         @unique
+  request           ServiceRequest @relation(fields: [requestId], references: [id])
+  beforeImageUrl    String?
+  afterImageUrl     String?
+  notes             String?
+  status            String
+  nextServiceDate   DateTime?
+  rating            Int?
+  feedback          String?
+  partsReplaced     String?
+  partNumber        String?
+  customerSignature String?
+  createdAt         DateTime       @default(now())
+}
+
+model Invoice {
+  id            String          @id @default(uuid())
+  invoiceNumber String          @unique
+  customerId    String
+  customer      CustomerProfile @relation(fields: [customerId], references: [customerId])
+  totalAmount   Float
+  gstAmount     Float
+  discount      Float           @default(0)
+  status        String          @default("UNPAID") // UNPAID, PAID
+  pdfUrl        String?
+  createdAt     DateTime        @default(now())
+
+  // Optional link to AMC contract
+  amcContractId String?
+  amcContract   AmcContract? @relation(fields: [amcContractId], references: [id])
+
+  @@index([customerId])
+  @@index([amcContractId])
+}
+
+model Attendance {
+  id           String            @id @default(uuid())
+  technicianId String
+  technician   TechnicianProfile @relation(fields: [technicianId], references: [technicianId])
+  date         DateTime          @default(now())
+  checkIn      DateTime?
+  checkOut     DateTime?
+  location     String?
+
+  @@index([technicianId])
+  @@index([date])
+}
+
+model InstalledAsset {
+  id                  String             @id @default(uuid())
+  customerId          String
+  customer            CustomerProfile    @relation(fields: [customerId], references: [customerId])
+  productId           String?
+  product             Product?           @relation(fields: [productId], references: [id])
+  modelName           String? // Model name e.g. "Pureit Copper+ RO"
+  serialNumber        String?            @unique // Unique serial number where available
+  installationDate    DateTime           @default(now())
+  warrantyStartDate   DateTime?
+  warrantyEndDate     DateTime?
+  installationAddress String
+  installationNotes   String?
+  status              String             @default("ACTIVE") // ACTIVE, INACTIVE, UNDER_MAINTENANCE, DECOMMISSIONED
+  installedByTechId   String?
+  installedBy         TechnicianProfile? @relation(fields: [installedByTechId], references: [technicianId])
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  amcContracts     AmcContract[]
+  serviceSchedules ServiceSchedule[]
+  serviceRequests  ServiceRequest[]
+
+  @@index([customerId])
+  @@index([productId])
+  @@index([status])
+  @@index([installedByTechId])
+}
+
+model AmcContract {
+  id               String          @id @default(uuid())
+  contractNumber   String          @unique // Unique contract number (e.g. AMC-2026-0001)
+  customerId       String
+  customer         CustomerProfile @relation(fields: [customerId], references: [customerId])
+  installedAssetId String
+  installedAsset   InstalledAsset  @relation(fields: [installedAssetId], references: [id])
+  startDate        DateTime
+  endDate          DateTime
+  contractAmount   Float
+  includedVisits   Int             @default(4)
+  completedVisits  Int             @default(0)
+  status           String          @default("ACTIVE") // ACTIVE, EXPIRED, CANCELLED, PENDING_RENEWAL, RENEWED
+
+  // Renewal tracking
+  renewalStatus      String       @default("NONE") // NONE, PENDING, RENEWED, LAPSED
+  renewalNotes       String?
+  previousContractId String?      @unique
+  previousContract   AmcContract? @relation("AmcContractRenewal", fields: [previousContractId], references: [id])
+  renewedContract    AmcContract? @relation("AmcContractRenewal")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  serviceSchedules ServiceSchedule[]
+  invoices         Invoice[]
+
+  @@index([customerId])
+  @@index([installedAssetId])
+  @@index([status])
+}
+
+model ServiceSchedule {
+  id                 String          @id @default(uuid())
+  installedAssetId   String
+  installedAsset     InstalledAsset  @relation(fields: [installedAssetId], references: [id])
+  amcContractId      String?
+  amcContract        AmcContract?    @relation(fields: [amcContractId], references: [id])
+  customerId         String
+  customer           CustomerProfile @relation(fields: [customerId], references: [customerId])
+  dueDate            DateTime
+  scheduledStartTime DateTime?
+  scheduledEndTime   DateTime?
+  status             String          @default("SCHEDULED") // SCHEDULED, IN_PROGRESS, COMPLETED, CANCELLED, OVERDUE
+  serviceType        String          @default("PERIODIC_MAINTENANCE") // PERIODIC_MAINTENANCE, FILTER_REPLACEMENT, MEMBRANE_CHANGE, GENERAL_CHECKUP
+  notes              String?
+
+  // Optional linked ServiceRequest
+  serviceRequestId String?         @unique
+  serviceRequest   ServiceRequest? @relation(fields: [serviceRequestId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([installedAssetId])
+  @@index([amcContractId])
+  @@index([customerId])
+  @@index([dueDate])
+  @@index([status])
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  title     String
+  message   String
+  type      String   @default("GENERAL") // SERVICE_REMINDER, AMC_EXPIRY, AMC_RENEWAL, JOB_ASSIGNMENT, STATUS_UPDATE
+  link      String?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([isRead])
+  @@index([createdAt])
+}
+
+model TechnicianAvailabilityLog {
+  id           String            @id @default(uuid())
+  technicianId String
+  technician   TechnicianProfile @relation(fields: [technicianId], references: [technicianId])
+  status       String // AVAILABLE, BUSY, ON_LEAVE, OFF_DUTY
+  reason       String?
+  startTime    DateTime          @default(now())
+  endTime      DateTime?
+  createdAt    DateTime          @default(now())
+
+  @@index([technicianId])
+}
