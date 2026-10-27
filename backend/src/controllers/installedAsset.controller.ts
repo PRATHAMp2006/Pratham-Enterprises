@@ -249,7 +249,7 @@ export const getInstalledAssets = async (req: Request, res: Response) => {
     ]);
 
     // Attach computed warranty indicator
-    const enrichedAssets = assets.map((asset) => {
+    const enrichedAssets = assets.map((asset: any) => {
       let computedWarranty = 'NO_WARRANTY';
       let daysRemaining: number | null = null;
       if (asset.warrantyEndDate) {
@@ -339,7 +339,7 @@ export const getInstalledAssetById = async (req: Request, res: Response) => {
     } else if (user.role === 'TECHNICIAN') {
       const profile = await prisma.technicianProfile.findUnique({ where: { userId: user.id } });
       const isInstaller = asset.installedByTechId === profile?.technicianId;
-      const isAssigned = asset.serviceRequests.some((r) => r.assignedTechId === profile?.technicianId);
+      const isAssigned = asset.serviceRequests.some((r: any) => r.assignedTechId === profile?.technicianId);
       if (!isInstaller && !isAssigned) {
         return res.status(403).json({ message: 'Forbidden: You are not authorized to view this asset' });
       }

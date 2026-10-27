@@ -38,6 +38,11 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'API is running' });
 });
 
-app.listen(port, () => {
-  console.log(`Server is running on port ${port}`);
-});
+// Only listen when not running on Vercel (Vercel uses the exported app)
+if (!process.env.VERCEL) {
+  app.listen(port, () => {
+    console.log(`Server is running on port ${port}`);
+  });
+}
+
+export default app;
